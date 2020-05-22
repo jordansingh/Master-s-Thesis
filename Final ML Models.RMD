@@ -1,0 +1,703 @@
+---
+title: "4.25.20 first ml models"
+author: "Jordan Singh"
+date: "4/25/2020"
+output: html_document
+---
+
+```{r, include = FALSE}
+library(class)
+library(dplyr)
+library(tidyverse)
+library(readr)
+library(lubridate)
+library(Lahman)
+library(ISLR)
+library(caret)
+library(data.table)
+
+df2019_2 <- read_csv("C:/Users/jorda/OneDrive/Desktop/Thesis/df2019 (2).csv")
+df2019 <- read_csv("C:/Users/jorda/OneDrive/Desktop/Thesis/df2019.csv")
+df2018 <- read_csv("C:/Users/jorda/OneDrive/Desktop/Thesis/df2018.csv")
+df2017 <- read_csv("C:/Users/jorda/OneDrive/Desktop/Thesis/df2017.csv")
+df2016 <- read_csv("C:/Users/jorda/OneDrive/Desktop/Thesis/df2016.csv")
+df2015 <- read_csv("C:/Users/jorda/OneDrive/Desktop/Thesis/df2015.csv")
+df2014 <- read_csv("C:/Users/jorda/OneDrive/Desktop/Thesis/df2014.csv")
+df2013 <- read_csv("C:/Users/jorda/OneDrive/Desktop/Thesis/df2013.csv")
+df2012 <- read_csv("C:/Users/jorda/OneDrive/Desktop/Thesis/df2012.csv")
+#df2011 <- read_csv("C:/Users/jorda/OneDrive/Desktop/Thesis/df2011.csv")
+#df2010 <- read_csv("C:/Users/jorda/OneDrive/Desktop/Thesis/df2010.csv")
+
+training1 <- df2018
+training2 <- bind_rows(df2018,
+                       df2017)
+training3 <- bind_rows(df2018,
+                       df2017,
+                       df2016)
+training4 <- bind_rows(df2018, df2017, df2016, df2015)
+training5 <- bind_rows(df2018, df2017,
+                       df2016,
+                       df2015,
+                       df2014)
+training6 <- bind_rows(df2018,
+                       df2017,
+                       df2016,
+                       df2015,
+                       df2014,
+                       df2013)
+training7 <- bind_rows(df2018,
+                       df2017,
+                       df2016,
+                       df2015,
+                       df2014,
+                       df2013,
+                       df2012)
+
+
+testing <- df2019
+training1$scorediff <- training1$home_score - training1$away_score
+
+```
+
+```{r}
+testing$win <- ifelse(testing$home_score > testing$away_score, 1, 0)
+training1$win <- ifelse(training1$home_score > training1$away_score, 1, 0) 
+training2$win <- ifelse(training2$home_score > training2$away_score, 1, 0)
+training3$win <- ifelse(training3$home_score > training3$away_score, 1, 0)
+training4$win <- ifelse(training4$home_score > training4$away_score, 1, 0)
+training5$win <- ifelse(training5$home_score > training5$away_score, 1, 0)
+training6$win <- ifelse(training6$home_score > training6$away_score, 1, 0)
+training7$win <- ifelse(training7$home_score > training7$away_score, 1, 0)
+
+#training1$win <- factor(training1$win)
+#training2$win <- factor(training2$win)
+#training3$win <- factor(training3$win)
+#training4$win <- factor(training4$win)
+#training5$win <- factor(training5$win)
+#training6$win <- factor(training6$win)
+#training7$win <- factor(training7$win)
+```
+
+Logit Models
+```{r}
+training1$win <- factor(training1$win, labels = c("yes", "no"), levels = 1:0)
+training2$win <- factor(training2$win, labels = c("yes", "no"), levels = 1:0)
+training3$win <- factor(training3$win, labels = c("yes", "no"), levels = 1:0)
+training4$win <- factor(training4$win, labels = c("yes", "no"), levels = 1:0)
+training5$win <- factor(training5$win, labels = c("yes", "no"), levels = 1:0)
+training6$win <- factor(training6$win, labels = c("yes", "no"), levels = 1:0)
+training7$win <- factor(training7$win, labels = c("yes", "no"), levels = 1:0)
+testing$win <- factor(testing$win, labels = c("yes", "no"), levels = 1:0)
+
+
+```
+
+Logit1
+```{r}
+logit1 <- glm(win == "yes" ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+             data = training1, 
+             family = binomial(link = "logit"))
+
+y_hat_logit1 <- predict(logit1, newdata = testing, type = "response")
+
+z_logit1 <- factor(y_hat_logit1 > 0.5, levels = c(TRUE, FALSE), labels = c("yes", "no")) 
+table(z_logit1, testing$win)
+
+#penalized
+ctrl <- trainControl(method = "repeatedcv", repeats = 5, 
+                     classProbs = TRUE, summaryFunction = twoClassSummary)
+
+tune_grid <- expand.grid(.alpha = seq(0, 1, length.out = 10),
+                         .lambda = seq(0, 1, length.out = 10))
+
+penalized_logit1 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+                         data = training1, method = "glmnet", 
+                         trControl = ctrl, metric = "Accuracy", tuneGrid = tune_grid,
+                         preProcess = c("center", "scale"))
+
+y_hat_penalized_logit1 <- predict(penalized_logit1, newdata = testing, type = "prob")$yes
+
+z1 <- predict(penalized_logit1, newdata = testing) 
+summary1 <- defaultSummary(data.frame(obs = testing$win, pred = z1))
+summary1
+confusionMatrix(z_logit1, testing$win)
+
+```
+
+Logit2
+```{r}
+logit2 <- glm(win == "yes" ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+             data = training2, 
+             family = binomial(link = "logit"))
+
+y_hat_logit2 <- predict(logit2, newdata = testing, type = "response")
+
+z_logit2 <- factor(y_hat_logit2 > 0.5, levels = c(TRUE, FALSE), labels = c("yes", "no")) 
+table(z_logit2, testing$win)
+
+#penalized
+ctrl <- trainControl(method = "repeatedcv", repeats = 5, 
+                     classProbs = TRUE, summaryFunction = twoClassSummary)
+
+tune_grid <- expand.grid(.alpha = seq(0, 1, length.out = 10),
+                         .lambda = seq(0, 1, length.out = 10))
+
+penalized_logit2 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+                         data = training2, method = "glmnet", 
+                         trControl = ctrl, metric = "Accuracy", tuneGrid = tune_grid,
+                         preProcess = c("center", "scale"))
+
+y_hat_penalized_logit2 <- predict(penalized_logit2, newdata = testing, type = "prob")$yes
+
+z2 <- predict(penalized_logit2, newdata = testing) 
+summary2 <- defaultSummary(data.frame(obs = testing$win, pred = z2))
+summary2
+
+roc(training2$win, logit2$fitted.values, plot = TRUE, percent = TRUE)
+
+```
+
+Logit3
+```{r}
+logit3 <- glm(win == "yes" ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+             data = training3, 
+             family = binomial(link = "logit"))
+
+y_hat_logit3 <- predict(logit3, newdata = testing, type = "response")
+
+z_logit3 <- factor(y_hat_logit3 > 0.5, levels = c(TRUE, FALSE), labels = c("yes", "no")) 
+table(z_logit3, testing$win)
+
+#penalized
+ctrl <- trainControl(method = "repeatedcv", repeats = 5, 
+                     classProbs = TRUE, summaryFunction = twoClassSummary)
+
+tune_grid <- expand.grid(.alpha = seq(0, 1, length.out = 10),
+                         .lambda = seq(0, 1, length.out = 10))
+
+penalized_logit3 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+                         data = training3, method = "glmnet", 
+                         trControl = ctrl, metric = "Accuracy", tuneGrid = tune_grid,
+                         preProcess = c("center", "scale"))
+
+y_hat_penalized_logit3 <- predict(penalized_logit3, newdata = testing, type = "prob")$yes
+
+z3 <- predict(penalized_logit3, newdata = testing) 
+summary3 <- defaultSummary(data.frame(obs = testing$win, pred = z3))
+summary3
+```
+
+Logit4
+```{r}
+logit4 <- glm(win == "yes" ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+             data = training4, 
+             family = binomial(link = "logit"))
+
+y_hat_logit4 <- predict(logit4, newdata = testing, type = "response")
+
+z_logit4 <- factor(y_hat_logit4 > 0.5, levels = c(TRUE, FALSE), labels = c("yes", "no")) 
+table(z_logit4, testing$win)
+
+#penalized
+ctrl <- trainControl(method = "repeatedcv", repeats = 5, 
+                     classProbs = TRUE, summaryFunction = twoClassSummary)
+
+tune_grid <- expand.grid(.alpha = seq(0, 1, length.out = 10),
+                         .lambda = seq(0, 1, length.out = 10))
+
+penalized_logit4 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+                         data = training4, method = "glmnet", 
+                         trControl = ctrl, metric = "Accuracy", tuneGrid = tune_grid,
+                         preProcess = c("center", "scale"))
+
+y_hat_penalized_logit4 <- predict(penalized_logit4, newdata = testing, type = "prob")$yes
+
+z4 <- predict(penalized_logit4, newdata = testing) 
+summary4 <- defaultSummary(data.frame(obs = testing$win, pred = z4))
+summary4
+```
+
+Logit5
+```{r}
+logit5 <- glm(win == "yes" ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+             data = training5, 
+             family = binomial(link = "logit"))
+
+y_hat_logit5 <- predict(logit5, newdata = testing, type = "response")
+
+z_logit5 <- factor(y_hat_logit5 > 0.5, levels = c(TRUE, FALSE), labels = c("yes", "no")) 
+table(z_logit5, testing$win)
+
+#penalized
+ctrl <- trainControl(method = "repeatedcv", repeats = 5, 
+                     classProbs = TRUE, summaryFunction = twoClassSummary)
+
+tune_grid <- expand.grid(.alpha = seq(0, 1, length.out = 10),
+                         .lambda = seq(0, 1, length.out = 10))
+
+penalized_logit5 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+                         data = training5, method = "glmnet", 
+                         trControl = ctrl, metric = "Accuracy", tuneGrid = tune_grid,
+                         preProcess = c("center", "scale"))
+
+y_hat_penalized_logit5 <- predict(penalized_logit5, newdata = testing, type = "prob")$yes
+
+z5 <- predict(penalized_logit5, newdata = testing) 
+summary5 <- defaultSummary(data.frame(obs = testing$win, pred = z5))
+summary5
+```
+
+
+Logit6
+```{r}
+logit6 <- glm(win == "yes" ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+             data = training6, 
+             family = binomial(link = "logit"))
+
+y_hat_logit6 <- predict(logit6, newdata = testing, type = "response")
+
+z_logit6 <- factor(y_hat_logit6 > 0.5, levels = c(TRUE, FALSE), labels = c("yes", "no")) 
+table(z_logit6, testing$win)
+
+#penalized
+ctrl <- trainControl(method = "repeatedcv", repeats = 5, 
+                     classProbs = TRUE, summaryFunction = twoClassSummary)
+
+tune_grid <- expand.grid(.alpha = seq(0, 1, length.out = 10),
+                         .lambda = seq(0, 1, length.out = 10))
+
+penalized_logit6 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+                         data = training6, method = "glmnet", 
+                         trControl = ctrl, metric = "Accuracy", tuneGrid = tune_grid,
+                         preProcess = c("center", "scale"))
+
+y_hat_penalized_logit6 <- predict(penalized_logit6, newdata = testing, type = "prob")$yes
+
+z6 <- predict(penalized_logit6, newdata = testing) 
+summary6 <- defaultSummary(data.frame(obs = testing$win, pred = z6))
+summary6
+```
+
+Logit7
+```{r}
+logit7 <- glm(win == "yes" ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+             data = training7, 
+             family = binomial(link = "logit"))
+
+y_hat_logit7 <- predict(logit7, newdata = testing, type = "response")
+
+z_logit7 <- factor(y_hat_logit7 > 0.5, levels = c(TRUE, FALSE), labels = c("yes", "no")) 
+table(z_logit7, testing$win)
+
+#penalized
+ctrl <- trainControl(method = "repeatedcv", repeats = 5, 
+                     classProbs = TRUE, summaryFunction = twoClassSummary)
+
+tune_grid <- expand.grid(.alpha = seq(0, 1, length.out = 10),
+                         .lambda = seq(0, 1, length.out = 10))
+
+penalized_logit7 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+                         data = training7, method = "glmnet", 
+                         trControl = ctrl, metric = "Accuracy", tuneGrid = tune_grid,
+                         preProcess = c("center", "scale"))
+
+y_hat_penalized_logit7 <- predict(penalized_logit7, newdata = testing, type = "prob")$yes
+
+z7 <- predict(penalized_logit7, newdata = testing) 
+summary7 <- defaultSummary(data.frame(obs = testing$win, pred = z7))
+summary7
+```
+
+```{r}
+data.frame(summary1,
+      summary2,
+      summary3,
+      summary4,
+      summary5,
+      summary6,
+      summary7)
+```
+
+
+```{r}
+testing$win <- ifelse(testing$home_score > testing$away_score, 1, 0)
+training1$win <- ifelse(training1$home_score > training1$away_score, 1, 0) 
+training2$win <- ifelse(training2$home_score > training2$away_score, 1, 0)
+training3$win <- ifelse(training3$home_score > training3$away_score, 1, 0)
+training4$win <- ifelse(training4$home_score > training4$away_score, 1, 0)
+training5$win <- ifelse(training5$home_score > training5$away_score, 1, 0)
+training6$win <- ifelse(training6$home_score > training6$away_score, 1, 0)
+training7$win <- ifelse(training7$home_score > training7$away_score, 1, 0)
+training1$win <- factor(training1$win)
+training2$win <- factor(training2$win)
+training3$win <- factor(training3$win)
+training4$win <- factor(training4$win)
+training5$win <- factor(training5$win)
+training6$win <- factor(training6$win)
+training7$win <- factor(training7$win)
+testing$win <- factor(testing$win)
+```
+
+
+Neural Netwokr1
+```{r}
+#neural network
+nnetGrid <- expand.grid(.decay = c(0, 0.01, .1),
+                        .size = c(1:10))
+
+ctrl <- trainControl(method = "cv", number = 10)
+
+nn1 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+            data = training1, method = "nnet",
+            trControl = ctrl, tuneGrid = nnetGrid,
+            preProcess = c("center", "scale"), trace = FALSE)
+
+nnsummary1 <- defaultSummary(data.frame(obs = testing$win,
+                          pred = predict(nn1, newdata = testing)))
+
+nnsummary1
+```
+
+Neural Netwokr2
+```{r}
+#neural network
+nnetGrid <- expand.grid(.decay = c(0, 0.01, .1),
+                        .size = c(1:10))
+
+ctrl <- trainControl(method = "cv", number = 10)
+
+nn2 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+            data = training2, method = "nnet",
+            trControl = ctrl, tuneGrid = nnetGrid,
+            preProcess = c("center", "scale"), trace = FALSE)
+
+nnsummary2 <- defaultSummary(data.frame(obs = testing$win,
+                          pred = predict(nn2, newdata = testing)))
+```
+
+Neural Network3
+```{r}
+#neural network
+nnetGrid <- expand.grid(.decay = c(0, 0.01, .1),
+                        .size = c(1:10))
+
+ctrl <- trainControl(method = "cv", number = 10)
+
+nn3 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+            data = training3, method = "nnet",
+            trControl = ctrl, tuneGrid = nnetGrid,
+            preProcess = c("center", "scale"), trace = FALSE)
+
+nnsummary3 <- defaultSummary(data.frame(obs = testing$win,
+                          pred = predict(nn3, newdata = testing)))
+
+nnsummary3
+```
+
+Neural Network4
+```{r}
+#neural network
+nnetGrid <- expand.grid(.decay = c(0, 0.01, .1),
+                        .size = c(1:10))
+
+ctrl <- trainControl(method = "cv", number = 10)
+
+nn4 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+            data = training4, method = "nnet",
+            trControl = ctrl, tuneGrid = nnetGrid,
+            preProcess = c("center", "scale"), trace = FALSE)
+
+nnsummary4 <- defaultSummary(data.frame(obs = testing$win,
+                          pred = predict(nn4, newdata = testing)))
+
+nnsummary4
+```
+
+Neural Network5
+```{r}
+#neural network
+nnetGrid <- expand.grid(.decay = c(0, 0.01, .1),
+                        .size = c(1:10))
+
+ctrl <- trainControl(method = "cv", number = 10)
+
+nn5 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+            data = training5, method = "nnet",
+            trControl = ctrl, tuneGrid = nnetGrid,
+            preProcess = c("center", "scale"), trace = FALSE)
+
+nnsummary5 <- defaultSummary(data.frame(obs = testing$win,
+                          pred = predict(nn5, newdata = testing)))
+
+nnsummary5
+```
+
+Neural Network6
+```{r}
+#neural network
+nnetGrid <- expand.grid(.decay = c(0, 0.01, .1),
+                        .size = c(1:10))
+
+ctrl <- trainControl(method = "cv", number = 10)
+
+nn6 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+            data = training6, method = "nnet",
+            trControl = ctrl, tuneGrid = nnetGrid,
+            preProcess = c("center", "scale"), trace = FALSE)
+
+nnsummary6 <- defaultSummary(data.frame(obs = testing$win,
+                          pred = predict(nn6, newdata = testing)))
+
+nnsummary6
+
+
+
+```
+
+Neural Network7
+```{r}
+#neural network
+nnetGrid <- expand.grid(.decay = c(0, 0.01, .1),
+                        .size = c(1:10))
+
+ctrl <- trainControl(method = "cv", number = 10)
+
+nn7 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+            data = training7, method = "nnet",
+            trControl = ctrl, tuneGrid = nnetGrid,
+            preProcess = c("center", "scale"), trace = FALSE)
+
+nnsummary7 <- defaultSummary(data.frame(obs = testing$win,
+                          pred = predict(nn7, newdata = testing)))
+
+nnsummary7
+```
+
+```{r}
+data.frame(nnsummary1,
+           nnsummary2,
+           nnsummary3,
+           nnsummary4,
+           nnsummary5,
+           nnsummary6,
+           nnsummary7)
+```
+
+
+Random Forest1
+```{r}
+rf_grid <- data.frame(.mtry = 2:(ncol(training1) - 1L))
+ctrl <- trainControl(method = "cv", number = 10)
+rfModel1 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+                         data = training1,
+                         method = "rf")
+rfsummary1 <- defaultSummary(data.frame(obs = testing$win,
+                          pred = predict(rfModel1, newdata = testing)))
+rfsummary1
+```
+
+Random Forest2
+```{r}
+rf_grid <- data.frame(.mtry = 2:(ncol(training2) - 1L))
+ctrl <- trainControl(method = "cv", number = 10)
+rfModel2 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+                         data = training2,
+                         method = "rf")
+rfsummary2 <- defaultSummary(data.frame(obs = testing$win,
+                          pred = predict(rfModel2, newdata = testing)))
+rfsummary2
+```
+
+Random Forest3
+```{r}
+rfModel3 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+                         data = training3,
+                         method = "rf")
+rfsummary3 <- defaultSummary(data.frame(obs = testing$win,
+                          pred = predict(rfModel3, newdata = testing)))
+rfsummary3
+```
+
+Random Forest4
+```{r}
+rfModel4 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+                         data = training4,
+                         method = "rf")
+rfsummary4 <- defaultSummary(data.frame(obs = testing$win,
+                          pred = predict(rfModel4, newdata = testing)))
+rfsummary4
+```
+
+Random Forest5
+```{r}
+rfModel5 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+                         data = training5,
+                         method = "rf")
+rfsummary5 <- defaultSummary(data.frame(obs = testing$win,
+                          pred = predict(rfModel5, newdata = testing)))
+rfsummary5
+```
+
+Random Forest6
+```{r}
+rfModel6 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+                         data = training6,
+                         method = "rf")
+rfsummary6 <- defaultSummary(data.frame(obs = testing$win,
+                          pred = predict(rfModel6, newdata = testing)))
+rfsummary6
+```
+
+Random Forest7
+```{r}
+rfModel7 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+                         data = training7,
+                         method = "rf")
+rfsummary7 <- defaultSummary(data.frame(obs = testing$win,
+                          pred = predict(rfModel7, newdata = testing)))
+rfsummary7
+```
+
+
+Bayesian GLM1
+```{r}
+library(arm)
+bglm1 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+                         data = training1, method = "bayesglm",)
+
+bglmsummary1 <- defaultSummary(data.frame(obs = testing$win,
+                          pred = predict(bglm1, newdata = testing)))
+bglmsummary1
+```
+
+
+Bayesian GLM2
+```{r}
+bglm2 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+                         data = training2, method = "bayesglm")
+
+bglmsummary2 <- defaultSummary(data.frame(obs = testing$win,
+                          pred = predict(bglm2, newdata = testing)))
+bglmsummary2
+```
+
+Bayesian GLM3
+```{r}
+bglm3 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+                         data = training3, method = "bayesglm")
+
+bglmsummary3 <- defaultSummary(data.frame(obs = testing$win,
+                          pred = predict(bglm3, newdata = testing)))
+bglmsummary3
+```
+
+Bayesian GLM4
+```{r}
+bglm4 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+                         data = training4, method = "bayesglm")
+
+bglmsummary4 <- defaultSummary(data.frame(obs = testing$win,
+                          pred = predict(bglm4, newdata = testing)))
+bglmsummary4
+```
+
+
+Bayesian GLM5
+```{r}
+bglm5 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+                         data = training5, method = "bayesglm")
+
+bglmsummary5 <- defaultSummary(data.frame(obs = testing$win,
+                          pred = predict(bglm5, newdata = testing)))
+bglmsummary5
+```
+
+Bayesian GLM6
+```{r}
+bglm6 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+                         data = training6, method = "bayesglm")
+
+bglmsummary6 <- defaultSummary(data.frame(obs = testing$win,
+                          pred = predict(bglm6, newdata = testing)))
+bglmsummary6
+```
+
+Bayesian GLM7
+```{r}
+bglm7 <- train(win ~ home_HR +	home_BBSOr +	home_TB +	home_OBP +	home_SLG +	home_wOBA +	home_wOPS +	home_PE +	away_HR +	away_BBSOr +	away_TB +	away_OBP +	away_SLG +	away_wOBA +	away_wOPS +	away_PE,
+                         data = training7, method = "bayesglm")
+
+bglmsummary7 <- defaultSummary(data.frame(obs = testing$win,
+                          pred = predict(bglm7, newdata = testing)))
+bglmsummary7
+```
+
+
+Plots
+```{r}
+hou1 <- filter(df2019_2, home_team == 'HOU')
+hou2 <-filter(df2019_2, away_team == 'HOU')
+was1 <- filter(df2019_2, home_team == 'WAS')
+was2 <- filter(df2019_2, away_team == 'WAS')
+hou1$team <- "hou"
+was1$team <- "was"
+hou2$team <- "hou"
+was2$team <- "was"
+
+ggplotly(ggplot() +
+   geom_point(df2019_2, mapping = aes(x = date, y = home_PE, colour = home_team))+
+   geom_point(df2019_2, mapping = aes(x = date, y = away_PE, colour = away_team))+
+      theme_minimal())
+
+ggplot() +
+   geom_point(hou1, mapping = aes(x = date, y = home_PE, color = team))+
+   geom_point(was2, mapping = aes(x = date, y = away_PE, color = team))+
+   geom_point(hou2, mapping = aes(x = date, y = away_PE, color = team))+
+   geom_point(was1, mapping = aes(x = date, y = home_PE, color = team))+
+   theme_minimal() +
+   ylab("Pythagorean Expectation") +
+   xlab("Date") +
+   ggtitle("World Series Teams PE Chart")
+
+
+```
+
+
+Descriptive Statistics for years
+```{r}
+#filtered to start around the end of april early may to exclude noise in descriptive statistics
+
+sdf2019 <- df2019[-(1:421),c( "home_HR", "home_BBSOr", "home_TB", "home_OBP", "home_SLG", "home_wOBA", "home_wOPS", "home_PE", "away_HR", "away_BBSOr", "away_TB", "away_OBP", "away_SLG", "away_wOBA", "away_wOPS", "away_PE")]
+sdf2018 <- df2018[-(1:421),c( "home_HR", "home_BBSOr", "home_TB", "home_OBP", "home_SLG", "home_wOBA", "home_wOPS", "home_PE", "away_HR", "away_BBSOr", "away_TB", "away_OBP", "away_SLG", "away_wOBA", "away_wOPS", "away_PE")]
+sdf2017 <- df2017[-(1:421),c( "home_HR", "home_BBSOr", "home_TB", "home_OBP", "home_SLG", "home_wOBA", "home_wOPS", "home_PE", "away_HR", "away_BBSOr", "away_TB", "away_OBP", "away_SLG", "away_wOBA", "away_wOPS", "away_PE")]
+sdf2016 <- df2016[-(1:421),c( "home_HR", "home_BBSOr", "home_TB", "home_OBP", "home_SLG", "home_wOBA", "home_wOPS", "home_PE", "away_HR", "away_BBSOr", "away_TB", "away_OBP", "away_SLG", "away_wOBA", "away_wOPS", "away_PE")]
+sdf2015 <- df2015[-(1:421),c( "home_HR", "home_BBSOr", "home_TB", "home_OBP", "home_SLG", "home_wOBA", "home_wOPS", "home_PE", "away_HR", "away_BBSOr", "away_TB", "away_OBP", "away_SLG", "away_wOBA", "away_wOPS", "away_PE")]
+sdf2014 <- df2014[-(1:421),c( "home_HR", "home_BBSOr", "home_TB", "home_OBP", "home_SLG", "home_wOBA", "home_wOPS", "home_PE", "away_HR", "away_BBSOr", "away_TB", "away_OBP", "away_SLG", "away_wOBA", "away_wOPS", "away_PE")]
+sdf2013 <- df2013[-(1:421),c( "home_HR", "home_BBSOr", "home_TB", "home_OBP", "home_SLG", "home_wOBA", "home_wOPS", "home_PE", "away_HR", "away_BBSOr", "away_TB", "away_OBP", "away_SLG", "away_wOBA", "away_wOPS", "away_PE")]
+sdf2012 <- df2012[-(1:421),c( "home_HR", "home_BBSOr", "home_TB", "home_OBP", "home_SLG", "home_wOBA", "home_wOPS", "home_PE", "away_HR", "away_BBSOr", "away_TB", "away_OBP", "away_SLG", "away_wOBA", "away_wOPS", "away_PE")]
+
+
+```
+
+
+```{r}
+ggplot(varImp(penalized_logit2)) +theme_minimal() +ggtitle("Penalized Logit - 2 Seasons")+
+   xlab("Variable")
+
+ggplot(nn7) + theme_minimal()
+
+```
+
+ROC curves
+```{r}
+library(pROC)
+
+rfModel6
+
+for_lift <- data.frame(win = rfModel6$pred$obs,
+                       rf = rfModel6$pred$R)
+lift_obj <- lift(win ~ rf, data = for_lift, class = "R")
+```
+
+
+
