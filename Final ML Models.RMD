@@ -2,7 +2,7 @@
 title: "4.25.20 first ml models"
 author: "Jordan Singh"
 date: "4/25/2020"
-output: html_document
+output: rmarkdown::github_document
 ---
 
 ```{r, include = FALSE}
